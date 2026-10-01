@@ -1,9 +1,58 @@
 #include <Arduino.h>
+#include <vector>
 #include "board.h"
 #include "v5p.hpp"
 
 LGFX lcd;
 V5PPlayer player(lcd);
+std::vector<String> playlist;
+
+void discoverVideos() {
+  playlist.clear();
+
+  // 1. Check known video file paths
+  const char* knownFiles[] = {
+    "/butcher_vanity.v5p",
+    "/fine.v5p",
+    "/video.v5p"
+  };
+
+  for (const char* path : knownFiles) {
+    if (SD_MMC.exists(path)) {
+      playlist.push_back(String(path));
+      Serial.printf("[esp32_v5p_player] found known video: %s\n", path);
+    }
+  }
+
+  // 2. Also attempt root directory enumeration
+  File root = SD_MMC.open("/");
+  if (root && root.isDirectory()) {
+    File file = root.openNextFile();
+    while (file) {
+      if (!file.isDirectory()) {
+        String name = file.name();
+        if (!name.startsWith("/")) name = "/" + name;
+        if (name.endsWith(".v5p")) {
+          bool alreadyAdded = false;
+          for (const auto& item : playlist) {
+            if (item.equalsIgnoreCase(name)) {
+              alreadyAdded = true;
+              break;
+            }
+          }
+          if (!alreadyAdded) {
+            playlist.push_back(name);
+            Serial.printf("[esp32_v5p_player] discovered: %s\n", name.c_str());
+          }
+        }
+      }
+      file = root.openNextFile();
+    }
+    root.close();
+  }
+
+  Serial.printf("[esp32_v5p_player] total videos in playlist: %d\n", (int)playlist.size());
+}
 
 void setup() {
   Serial.begin(115200);
@@ -22,13 +71,30 @@ void setup() {
     return;
   }
 
-  Serial.println("[esp32_v5p_player] launching video: /fine.v5p");
+  discoverVideos();
 }
 
 void loop() {
-  // Play /fine.v5p in a continuous loop
-  if (!player.play("/fine.v5p", true)) {
-    Serial.println("[esp32_v5p_player] playback halted or file missing, retrying in 2s...");
-    delay(2000);
+  if (playlist.empty()) {
+    discoverVideos();
+    if (playlist.empty()) {
+      Serial.println("[esp32_v5p_player] no .v5p videos found on SD, checking again in 3s...");
+      delay(3000);
+      return;
+    }
+  }
+
+  bool loopSingle = (playlist.size() == 1);
+
+  for (const String& path : playlist) {
+    Serial.printf("[esp32_v5p_player] starting playback: %s (loop=%s)\n",
+                  path.c_str(), loopSingle ? "true" : "false");
+
+    if (!player.play(path.c_str(), loopSingle)) {
+      Serial.printf("[esp32_v5p_player] playback stopped for %s\n", path.c_str());
+    }
+
+    if (loopSingle) break;
+    delay(200);
   }
 }
