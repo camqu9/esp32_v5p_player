@@ -11,8 +11,8 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 
-// --- Pins (1.47B, from the official schematic in docs/) -------------------------
-#define PIN_BL   46   // LCD backlight, active HIGH
+// --- Pins (ESP32-S3-LCD-1.47 base is 48; 1.47B is 46) -------------------------
+#define PIN_BL   48   // LCD backlight, active HIGH
 #define PIN_BTN  0    // BOOT button, active LOW (use INPUT_PULLUP)
 #define PIN_RGB  38   // onboard WS2812 RGB LED
 

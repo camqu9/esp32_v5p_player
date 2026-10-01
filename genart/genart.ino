@@ -91,8 +91,10 @@ void setup() {
 
   bool ok = lcd.init();
   lcd.setRotation(0);
-  pinMode(PIN_BL, OUTPUT);
-  digitalWrite(PIN_BL, HIGH);                // backlight on (GPIO46)
+  pinMode(48, OUTPUT);
+  digitalWrite(48, HIGH);                // backlight on (base 1.47)
+  pinMode(46, OUTPUT);
+  digitalWrite(46, HIGH);                // backlight on (1.47B)
 
   buildTables();
   effectsSeed(esp_random());     // hardware RNG so randomized runs differ each boot
@@ -140,9 +142,12 @@ void setup() {
                 bufs[0] ? "OK" : "NULL", bufs[1] ? "OK" : "NULL",
                 (unsigned)ESP.getFreeHeap());
 
-  g_nClips = videoInit();        // mount SD + scan for *.avi; clips become extra scenes
+  g_nClips = videoInit();        // mount SD + scan for *.avi and *.v5p; clips become extra scenes
   Serial.printf("[genart] scenes=%d (%d effects + %d clips)\n",
                 sceneCount(), NUM_EFFECTS, g_nClips);
+  if (g_nClips > 0) {
+    g_scene = NUM_EFFECTS;       // Default immediately to the video!
+  }
   showLed(g_scene);
 
   // Buffers are built — release them to the producer, which has been waiting on freeQ.

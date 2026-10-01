@@ -1,13 +1,13 @@
-# ESP32-S3 Generative Art Display
+# ESP32-S3 V5P Video Player & Generative Art Display
 
-Real-time generative art on a **Waveshare ESP32-S3-LCD-1.47B** — a 1.47" ST7789 IPS
-panel (172×320, RGB565) driven by a dual-core ESP32-S3 at 240 MHz. Everything is
-**CPU-rendered into a RAM framebuffer and DMA'd to the panel** (the S3 has no GPU),
-running at the panel's **~91 fps SPI ceiling**. The **BOOT button** cycles effects and
-the onboard **RGB LED** reflects the active one.
+High-performance video player supporting `.v5p` (LZ4 compressed RGB and YUV420) and MJPEG/AVI playback alongside real-time generative art on the **Waveshare ESP32-S3-LCD-1.47 / 1.47B** (1.47" ST7789 IPS panel, 172×320, RGB565).
 
-The headline piece is a **falling-sand cellular automaton** with a gusty breeze,
-hand-picked color palettes, and a different "personality" every run.
+Features:
+- **V5P Video Playback**: Supports `V5RU`, `V5RZ`, `V5YU`, and `V5YZ` formats with real-time LZ4 decompression off microSD (SDMMC bus).
+- **Auto-Rotation**: 90° rotation with precomputed lookup tables to display 16:9 widescreen videos on the portrait panel.
+- **Hardware Compatibility**: Supports both the base **ESP32-S3-LCD-1.47** (backlight GPIO 48) and **1.47B** (backlight GPIO 46).
+- **Real-Time Generative Art**: Dual-core double-buffered CPU rendering pipeline with 8 procedural scenes.
+- **Controls**: BOOT button cycles seamlessly between video clips and procedural scenes.
 
 ## The effects
 

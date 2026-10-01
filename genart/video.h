@@ -21,4 +21,5 @@ uint32_t videoLastDecodeUs();             // raw SD-read + decode time of the la
 // Decode the next frame of `clip` into `buf` (SCREEN_W*SCREEN_H, byte-swapped RGB565,
 // same layout the effects write). Selecting a new clip (or first call) opens/seeks it.
 // Paces itself to the clip's fps and loops at end. Safe no-op (clears buf) on error.
-void videoRenderFrame(uint16_t* buf, int w, int h, int clip);
+void        videoRenderFrame(uint16_t* buf, int w, int h, int clip);
+void        videoSetRotation(int rot);
