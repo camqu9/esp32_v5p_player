@@ -17,6 +17,7 @@ void discoverVideos() {
     "/boneless_wing.v5p",
     "/butcher_vanity.v5p",
     "/fine.v5p",
+    "/gangster.v5p",
     "/video.v5p"
   };
 
