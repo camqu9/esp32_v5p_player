@@ -13,6 +13,7 @@ void discoverVideos() {
   // 1. Check known video file paths
   const char* knownFiles[] = {
     "/bad_apple.v5p",
+    "/bad_apple_mmd.v5p",
     "/butcher_vanity.v5p",
     "/fine.v5p",
     "/video.v5p"
