@@ -18,9 +18,9 @@
 #define PIN_SD_D2   17
 #define PIN_SD_D3   21
 
-// Display dimensions in portrait (MADCTL hardware rotated 180 degrees)
-static const int SCREEN_WIDTH  = 172;
-static const int SCREEN_HEIGHT = 320;
+// Display dimensions in native landscape (MADCTL hardware rotated)
+static const int SCREEN_WIDTH  = 320;
+static const int SCREEN_HEIGHT = 172;
 
 // --- Verified ST7789 Panel Config ---
 class LGFX : public lgfx::LGFX_Device {
@@ -70,9 +70,9 @@ public:
   }
 };
 
-inline void initBoardHardware(LGFX& lcd, uint8_t rotation = 2) {
+inline void initBoardHardware(LGFX& lcd, uint8_t rotation = 1) {
   lcd.init();
-  lcd.setRotation(rotation); // Hardware MADCTL rotation: 2 = Portrait 180 degrees
+  lcd.setRotation(rotation); // Hardware MADCTL rotation: 1 = Landscape 320x172
 
   // Backlight: drive both GPIO 48 and 46 HIGH to support both board revisions
   pinMode(PIN_BL_BASE, OUTPUT);

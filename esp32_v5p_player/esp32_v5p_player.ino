@@ -63,10 +63,10 @@ void setup() {
   Serial.println("\n[esp32_v5p_player] booting...");
 
   // Initialize board hardware:
-  // - ST7789 in portrait 180 degrees (172x320 via hardware MADCTL rotation 2)
+  // - ST7789 in native silicon landscape (320x172 via hardware MADCTL rotation 1)
   // - Backlight driven HIGH for both base 1.47 (GPIO 48) and 1.47B (GPIO 46)
   // - SDMMC 4-bit bus pullups enabled
-  initBoardHardware(lcd, 2);
+  initBoardHardware(lcd, 1);
 
   // Initialize V5P video player and mount SD card
   if (!player.begin()) {

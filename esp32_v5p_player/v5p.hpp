@@ -59,12 +59,9 @@ private:
 
   V5PStats _stats = { 0, 0, 0, 0 };
 
-  int _dispWidth = 172;
-  int _dispHeight = 320;
-
-  // Precomputed coordinate scaling lookups (capacity 320 for either orientation)
-  int _sx_lut[320];
-  int _scx_lut[320];
+  // Precomputed coordinate scaling lookups for 320 width
+  int _sx_lut[SCREEN_WIDTH];
+  int _scx_lut[SCREEN_WIDTH];
 
   bool readHeader();
   bool readAndDecompressFrame();

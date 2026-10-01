@@ -33,11 +33,8 @@ bool V5PPlayer::begin() {
                 SD_MMC.cardSize() / (1024ULL * 1024ULL),
                 SD_MMC.usedBytes() / (1024ULL * 1024ULL));
 
-  _dispWidth = _lcd.width();
-  _dispHeight = _lcd.height();
-
   // Allocate double-buffered DMA display buffers in PSRAM
-  const size_t dmaBytes = (size_t)_dispWidth * _dispHeight * sizeof(lgfx::swap565_t);
+  const size_t dmaBytes = (size_t)SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(lgfx::swap565_t);
   for (int i = 0; i < 2; i++) {
     if (!_dmaBuffers[i]) {
       _dmaBuffers[i] = (lgfx::swap565_t*)ps_malloc(dmaBytes);
@@ -138,12 +135,9 @@ bool V5PPlayer::readHeader() {
 
   _maxCompressedSize = (size_t)LZ4_compressBound((int)_frameSize);
 
-  _dispWidth = _lcd.width();
-  _dispHeight = _lcd.height();
-
   // Precompute horizontal scaling lookups
-  for (int x = 0; x < _dispWidth && x < 320; x++) {
-    _sx_lut[x]  = (x * _width) / _dispWidth;
+  for (int x = 0; x < SCREEN_WIDTH; x++) {
+    _sx_lut[x]  = (x * _width) / SCREEN_WIDTH;
     _scx_lut[x] = _sx_lut[x] / 2;
   }
 
@@ -304,7 +298,7 @@ bool V5PPlayer::play(const char* filepath, bool loop) {
     }
 
     // 2. Convert directly to double-buffered DMA memory
-    convertFrameToDmaBuffer(_dmaBuffers[_dmaIndex], _dispWidth, _dispHeight);
+    convertFrameToDmaBuffer(_dmaBuffers[_dmaIndex], SCREEN_WIDTH, SCREEN_HEIGHT);
     uint32_t decodeUs = micros() - t0;
     totalDecodeUs += decodeUs;
 
@@ -313,7 +307,7 @@ bool V5PPlayer::play(const char* filepath, bool loop) {
     _lcd.waitDMA();
 
     // 4. Launch concurrent DMA transfer of the new frame
-    _lcd.pushImageDMA(0, 0, _dispWidth, _dispHeight, _dmaBuffers[_dmaIndex]);
+    _lcd.pushImageDMA(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, _dmaBuffers[_dmaIndex]);
     uint32_t pushUs = micros() - tPush0;
     totalPushUs += pushUs;
 
