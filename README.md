@@ -1,141 +1,80 @@
-# ESP32-S3 V5P Video Player & Generative Art Display
+# ESP32-S3 V5P Video Player (`esp32_v5p_player`)
 
-High-performance video player supporting `.v5p` (LZ4 compressed RGB and YUV420) and MJPEG/AVI playback alongside real-time generative art on the **Waveshare ESP32-S3-LCD-1.47 / 1.47B** (1.47" ST7789 IPS panel, 172×320, RGB565).
+High-performance, hardware-accelerated `.v5p` video player for the **Waveshare ESP32-S3-LCD-1.47** and **ESP32-S3-LCD-1.47B** boards (ST7789 1.47" IPS display, native 172×320 panel).
 
-Features:
-- **V5P Video Playback**: Supports `V5RU`, `V5RZ`, `V5YU`, and `V5YZ` formats with real-time LZ4 decompression off microSD (SDMMC bus).
-- **Auto-Rotation**: 90° rotation with precomputed lookup tables to display 16:9 widescreen videos on the portrait panel.
-- **Hardware Compatibility**: Supports both the base **ESP32-S3-LCD-1.47** (backlight GPIO 48) and **1.47B** (backlight GPIO 46).
-- **Real-Time Generative Art**: Dual-core double-buffered CPU rendering pipeline with 8 procedural scenes.
-- **Controls**: BOOT button cycles seamlessly between video clips and procedural scenes.
+## Key Features
 
-## The effects
+- **Dedicated V5P Decoding**: Real-time decompression and playback of `.v5p` video streams with support for:
+  - `V5RU` / `V5RZ` (Raw RGB565 / LZ4 compressed)
+  - `V5YU` / `V5YZ` (YUV420 Planar / LZ4 compressed with fast integer RGB conversion)
+  - `V55U` / `V55Z` (Raw RGB555 / LZ4 compressed)
+- **Hardware Display Rotation**: ST7789 hardware MADCTL configuration (`setRotation(1)`) renders natively in 320×172 landscape mode directly in silicon—completely eliminating software lookup tables (LUTs) and manual pixel re-mapping loops.
+- **Asynchronous DMA Pipeline**: Double-buffered PSRAM framebuffers allow the CPU to decompress the next frame concurrently while LovyanGFX's SPI DMA controller pushes the previous frame to the display (push time dropped from 13.6 ms to 7.9 ms).
+- **High-Speed SDMMC**: Reads video directly from FAT32 microSD cards over high-speed 4-bit SDMMC bus.
+- **Universal Board Compatibility**: Simultaneously activates GPIO 48 and GPIO 46 backlights, ensuring out-of-the-box operation on both standard ESP32-S3-LCD-1.47 (GPIO 48) and ESP32-S3-LCD-1.47B (GPIO 46).
 
-Cycle with the BOOT button:
+---
 
-| # | Effect | What it is |
-|---|--------|-----------|
-| 0 | **sand** | Falling-sand simulation (pixel-art, 2px cells). A wandering emitter sprays colored grains that fall, slide, and pile into shifting dunes; a gusty breeze sculpts the surface; the pile avalanche-resets near full. Each run randomizes palette, spray width, wind, and emitter motion. |
-| 1 | **plasma** | Classic sin-LUT plasma — big soft blobs flowing through a smooth color gradient. |
-| 2 | **rings** | Concentric ripples expanding from a center. |
-| 3 | **weave** | Soft interference/moiré from multiplied sine fields. |
+## Hardware Pinout (Waveshare ESP32-S3-LCD-1.47 / 1.47B)
 
-All four render into a full-screen sprite at ~91 fps.
+| Function | Pin (GPIO) | Notes |
+|---|---|---|
+| **LCD SCLK** | GPIO 40 | SPI Clock @ 80 MHz |
+| **LCD MOSI** | GPIO 45 | SPI Master Out |
+| **LCD CS** | GPIO 42 | Chip Select |
+| **LCD DC** | GPIO 41 | Data / Command |
+| **LCD RST** | GPIO 39 | Reset |
+| **LCD Backlight** | GPIO 48 & GPIO 46 | Driven HIGH (Pin 48 for base 1.47, Pin 46 for 1.47B) |
+| **SDMMC CLK** | GPIO 14 | 4-bit SDMMC clock |
+| **SDMMC CMD** | GPIO 15 | Command line (internal pullup) |
+| **SDMMC D0** | GPIO 16 | Data line 0 (internal pullup) |
+| **SDMMC D1** | GPIO 18 | Data line 1 (internal pullup) |
+| **SDMMC D2** | GPIO 17 | Data line 2 (internal pullup) |
+| **SDMMC D3** | GPIO 21 | Data line 3 (internal pullup) |
+| **WS2812 RGB** | GPIO 38 | Status RGB LED |
 
-### Falling sand details
+---
 
-- **Pixel-art grid** of 86×160 cells (2px each) — ~13.7k grains.
-- **91 Hz physics** with each grain acting at ~50% probability per frame: smooth
-  motion at the full frame rate, but a lazy average fall speed with natural scatter
-  (no fixed-rate strobe).
-- **Gusty breeze** — a two-sine wind nudges resting grains sideways into dunes.
-- **Curated palettes** — 8 tasteful 2-color cyclic gradients (midnight→aqua,
-  wine→gold, violet→coral, …), one rolled per run, instead of a garish full rainbow.
-- **Per-run variety** — spray width, grains-per-burst, wind strength/rhythm, and
-  emitter motion pattern are all randomized each run; PRNG seeded from `esp_random()`
-  so the sequence differs each boot.
-- **Smart reset** — avalanche-resets when the *settled* pile (grains with support
-  below, ignoring the falling stream) reaches the top 5% of the screen.
+## Project Structure
 
-## Architecture
-
-The app (`genart/`) is built around a small, reusable structure:
-
-- **`board.h`** — the single source of truth for the hardware: pins, the verified
-  LovyanGFX `LGFX` panel class, and screen dimensions.
-- **`effects.h` / `effects.cpp`** — the effect *standard*. An `Inputs` struct (frame
-  counter + `ax/ay/az` tilt) is handed to every effect; effects are registered in one
-  `EFFECTS[]` table. **Adding an effect is one function + one table row.** The tilt
-  fields are already plumbed for the (planned) IMU.
-- **`genart.ino`** — orchestration only: the dual-core render pipeline, BOOT-button
-  cycling, RGB LED, and fps/timing instrumentation.
-
-### Rendering pipeline (how it hits 91 fps)
-
-Frames are **double-buffered across both cores**:
-
-- **Core 0** (a pinned FreeRTOS task) computes the next frame into a free buffer.
-- **Core 1** (the Arduino `loop`) DMA-pushes the ready buffer to the panel.
-- Buffers ping-pong through two FreeRTOS queues, so compute and transfer overlap and
-  the frame time is `max(render, push)` instead of their sum.
-
-Effects write **RGB565 directly** (via a per-effect palette LUT) into a 16bpp sprite,
-so `pushSprite` is a pure DMA blit with no per-pixel conversion. The push then costs
-~11 ms — the raw SPI transfer time for a full frame at 80 MHz — which is the ceiling.
-
-The journey on a single effect: **40 fps** (naïve single-buffer) → **55 fps**
-(dual-core overlap) → **91 fps** (16bpp direct-write, conversion removed).
-
-## Hardware
-
-| Item | Detail |
-|---|---|
-| Board | Waveshare ESP32-S3-LCD-1.47**B** (Type B) |
-| MCU | ESP32-S3 (dual-core Xtensa LX7 @ 240 MHz), rev v0.2 |
-| RAM | 512 KB internal SRAM + 8 MB PSRAM (N16R8) |
-| Flash | 16 MB |
-| Display | ST7789, 172×320 IPS, RGB565, 4-wire SPI @ 80 MHz |
-| Controls | BOOT button (GPIO0), RESET |
-| Extras | WS2812 RGB LED (GPIO38), QMI8658 IMU (I2C), microSD/TF slot |
-| USB | Native USB-Serial/JTAG, enumerates as COM3 |
-
-### ⚠️ The backlight gotcha (cost us days)
-
-This is the **1.47B**, whose LCD **backlight is on GPIO46** — *not* GPIO48 like the
-base 1.47. Every third-party config and even the official esp32 core variant lists 48,
-so the panel initialized fine but stayed dark. If you fork this for the base 1.47,
-change `PIN_BL` back to 48. Authoritative pinout: `docs/ESP32-S3-LCD-1.47B_schematic.pdf`.
-
-### Confirmed pin map
-
-| Signal | GPIO | | Signal | GPIO |
-|---|---|---|---|---|
-| SCLK | 40 | | RST | 39 |
-| MOSI | 45 | | **Backlight** (active HIGH) | **46** |
-| CS | 42 | | RGB LED (WS2812) | 38 |
-| DC | 41 | | IMU I2C (SDA/SCL) | 43 / 44 *(to confirm)* |
-
-microSD is on a dedicated SDMMC bus (CLK 14, CMD 15, D0 16, D1 18, D2 17, D3 21) — unused.
-
-## Toolchain
-
-- **arduino-cli 1.5.0**, **esp32:esp32 core 3.3.8**, **LovyanGFX 1.2.21**
-
-> **Note:** the backlight is driven with a plain `digitalWrite(46, HIGH)`, *not*
-> LovyanGFX's `Light_PWM` — its LEDC path is broken on esp32 core 3.x ([LovyanGFX
-> #708](https://github.com/lovyan03/LovyanGFX/issues/708)) and silently leaves the
-> backlight off. PWM dimming can be restored later via the core-3.x `ledcAttach` API.
-
-## Build & flash
-
-arduino-cli may not be on PATH in a fresh shell; prepend it first:
-
-```powershell
-$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')
-$FQBN = "esp32:esp32:esp32s3:PSRAM=disabled,FlashSize=16M,CDCOnBoot=cdc,FlashMode=qio"
-
-arduino-cli compile --fqbn $FQBN .\genart
-arduino-cli upload  -p COM3 --fqbn $FQBN .\genart
+```
+.
+├── esp32_v5p_player/
+│   ├── board.h               # Hardware pin configuration & LovyanGFX setup
+│   ├── esp32_v5p_player.ino  # Main application entry point
+│   ├── lz4.c / lz4.h         # Embedded LZ4 decompressor
+│   └── v5p.hpp / v5p.cpp     # Dedicated V5P video decoding and DMA player engine
+├── platformio.ini            # PlatformIO build configuration
+└── README.md
 ```
 
-`CDCOnBoot=cdc` routes `Serial` over the native USB port (fps/timing prints there).
+---
 
-## Sketches
+## Build & Flash
 
-| Sketch | Purpose | Status |
-|---|---|---|
-| `genart/` | **The app** — dual-core gen-art engine: sand sim + 3 shaders, BOOT cycling | ✅ ~91 fps |
-| `display_test/` | Color-bar + frame-counter panel validation (sprite + DMA) | ✅ works |
-| `rgb_test/` | Cycle the WS2812 RGB LED on GPIO38 | ✅ works |
-| `bl_test/` | Blink the backlight only (diagnostic) | superseded |
+### Option A: `arduino-cli` (Recommended)
 
-## Status & roadmap
+1. Make sure `arduino-cli` is installed with `esp32:esp32` core and `LovyanGFX` library.
+2. Compile:
+   ```bash
+   arduino-cli compile --fqbn "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,CDCOnBoot=cdc,FlashMode=qio" ./esp32_v5p_player
+   ```
+3. Upload to board:
+   ```bash
+   arduino-cli upload -p /dev/ttyACM0 --fqbn "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,CDCOnBoot=cdc,FlashMode=qio" ./esp32_v5p_player
+   ```
 
-- ✅ Panel working (after the GPIO46 backlight discovery), reliable flash over COM3
-- ✅ Dual-core 16bpp render pipeline at the ~91 fps SPI ceiling
-- ✅ Effect framework + falling-sand simulation with per-run variety
-- ⏭️ **Next:** wire the onboard **QMI8658 IMU** so tilting the board becomes gravity
-  (pour the sand around, wind fighting your tilt — the `Inputs.ax/ay/az` hook is ready)
-- ⏭️ More sims (water/walls in the sand, Game of Life), optional PWM brightness, microSD presets
+### Option B: PlatformIO
 
-See **`CLAUDE.md`** for the full engineering log, the debugging story, and learnings.
+```bash
+pio run -t upload
+```
+
+---
+
+## Usage
+
+1. Format a microSD card as **FAT32**.
+2. Copy your `.v5p` video file (e.g. `fine.v5p`) to the root of the microSD card.
+3. Insert the microSD card into the slot on the board.
+4. Power up or reset the ESP32-S3. The player will mount the card, initialize the display in hardware landscape, and continuously loop playback.
